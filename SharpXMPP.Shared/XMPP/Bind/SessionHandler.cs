@@ -48,7 +48,6 @@ namespace SharpXMPP.XMPP.Bind
                         OnSessionStarted(connection);
                     }
                 });
-                connection.SessionLoop();
             }    
         }
     }

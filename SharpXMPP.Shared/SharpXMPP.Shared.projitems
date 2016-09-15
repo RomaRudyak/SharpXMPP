@@ -50,6 +50,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)XmppComponent.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)XmppConnection.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)XmppTcpConnection.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)XmppWebSocketConnection.cs" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="$(MSBuildThisFileDirectory)XMPP\" />

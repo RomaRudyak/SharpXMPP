@@ -27,11 +27,7 @@ namespace SharpXMPP
         {
             get { return 5222; }
             set { throw new NotImplementedException(); }
-        }
-    
-        protected readonly string Password;
-
-        
+        }        
     
         protected XmppTcpConnection(string ns, JID jid, string password) : base(ns)
         {
@@ -93,7 +89,7 @@ namespace SharpXMPP
             Writer.WriteEndElement();
         }
 
-        public override void SessionLoop()
+        public void SessionLoop()
         {
             while (true)
             {
@@ -169,7 +165,11 @@ namespace SharpXMPP
             {
                 RestartXmlStreams();
                 var session = new SessionHandler();
-                session.SessionStarted += connection => OnSignedIn(new SignedInArgs {Jid = connection.Jid});
+				session.SessionStarted += connection =>
+				{
+					OnSignedIn(new SignedInArgs { Jid = connection.Jid });
+					((XmppTcpConnection)connection).SessionLoop();
+				};
                 session.Start(this);
             };
             authenticator.Start(this);

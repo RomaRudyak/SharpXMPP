@@ -14,9 +14,8 @@ using SharpXMPP.XMPP.Client.Elements;
 using SharpXMPP.XMPP.SASL;
 using SharpXMPP.XMPP.SASL.Elements;
 using SharpXMPP.XMPP.Stream.Elements;
-using WebSocket4Net;
 using System.Text;
-using SharpXMPP.XMPP.Client.Roster.Elements;
+using WebSocket4Net;
 
 namespace SharpXMPP
 {
@@ -42,8 +41,10 @@ namespace SharpXMPP
         private SASLHandler authenticator;
 
         public XmppWebSocketConnection(JID jid, string password, string websocketUri)
-            : base(jid, password)
+            : base("")
         {
+			Jid = jid;
+			Password = password;
             Capabilities = new CapabilitiesManager
             {
                 Identity = new Identity
@@ -60,19 +61,15 @@ namespace SharpXMPP
                     Namespaces.DiscoItems
                 }
             };
-            IqTracker = new XMPP.Client.IqHandler(this)
-            {
-                ResponseHandlers = new Dictionary<string, ResponseHandler>(),
-                PayloadHandlers = new List<PayloadHandler>
-                          {
-                              new InfoHandler(Capabilities),
-                              new ItemsHandler()
-                          }
-            };
-            Iq += (sender, iq) => IqTracker.Handle(iq);
-// ReSharper disable RedundantArgumentDefaultValue
-            _connection = new WebSocket(websocketUri, "xmpp", cookies: (List<KeyValuePair<string, string>>)null);
-// ReSharper restore RedundantArgumentDefaultValue
+            Iq += (sender, iq) => new IqManager(this)
+			{
+				PayloadHandlers = new List<PayloadHandler>
+						  {
+							  new InfoHandler(Capabilities),
+							  new ItemsHandler()
+						  }
+			}.Handle(iq);
+			_connection = new WebSocket(websocketUri, "xmpp", WebSocketVersion.Rfc6455);
             _connection.Opened += (sender, args) =>
 
                                       {
@@ -95,7 +92,7 @@ namespace SharpXMPP
                                                 } 
                                                 else
                                                 {
-                                                    var currentStanza = Stanza.Parse(args.Message);
+                                                    var currentStanza = XElement.Parse(args.Message);
                                                     OnElement(new ElementArgs
                                                     {
                                                         IsInput = false,
@@ -160,7 +157,7 @@ namespace SharpXMPP
                                                             // todo: parse features of negotiated stream
                                                             //Stanza.Parse<Features>(currentStanza);
                                                             var bind = new Bind(Jid.Resource);
-                                                            var iq = new Iq(XMPP.Client.Elements.Iq.IqTypes.set);
+															var iq = new XMPPIq(XMPPIq.IqTypes.get);
                                                             iq.Add(bind);
                                                             Send(iq);
                                                             _currentState =
@@ -186,7 +183,7 @@ namespace SharpXMPP
                                                                     new XElement(
                                                                         XNamespace.Get(Namespaces.XmppSession) +
                                                                         "session");
-                                                                var sessIq = new Iq(XMPP.Client.Elements.Iq.IqTypes.set);
+                                                                var sessIq = new XMPPIq(XMPPIq.IqTypes.set);
                                                                 sessIq.Add(sess);
                                                                 Send(sessIq);
                                                                 _currentState = XmppConnectionState.StreamSessionNoOp;
@@ -199,20 +196,21 @@ namespace SharpXMPP
                                                             break;
                                                         case XmppConnectionState.StreamSessionNoOp:
                                                             OnSignedIn(new SignedInArgs {Jid = Jid});
-                                                            Roster.Query(this);
-                                                            var initPresence = new Presence(Capabilities);
-                                                            Send(initPresence);
                                                             _currentState = XmppConnectionState.StreamNegotiated;
                                                             break;
                                                         case XmppConnectionState.StreamNegotiated:
                                                             if (currentStanza.Name.LocalName.Equals("iq"))
                                                             {
-                                                                OnIq(Stanza.Parse<Iq>(currentStanza));
+                                                                OnIq(Stanza.Parse<XMPPIq>(currentStanza));
                                                             }
                                                             if (currentStanza.Name.LocalName.Equals("message"))
                                                             {
-                                                                OnMessage(Stanza.Parse<Message>(currentStanza));
+                                                                OnMessage(Stanza.Parse<XMPPMessage>(currentStanza));
                                                             }
+															if (currentStanza.Name.LocalName.Equals("presence"))
+															{
+																OnPresence(Stanza.Parse<XMPPPresence>(currentStanza));
+															}
                                                             break;
                                                         default:
                                                             throw new IOException("Invalid state");
@@ -246,8 +244,8 @@ namespace SharpXMPP
             var xws = new XmlWriterSettings { ConformanceLevel = ConformanceLevel.Fragment, Encoding = Encoding.UTF8};
             var sw = new StringWriter();
             var writer = XmlWriter.Create(sw, xws);            
-            writer.WriteStartElement("stream", "stream", Namespaces.Streams);
-            writer.WriteAttributeString("xmlns", Namespaces.JabberClient);
+            writer.WriteStartElement("open");
+			writer.WriteAttributeString("xmlns", Namespaces.XmppFraming);
             writer.WriteAttributeString("version", "1.0");
             writer.WriteAttributeString("to", Jid.Domain);
             writer.WriteRaw("");
